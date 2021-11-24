@@ -16,6 +16,10 @@ from nornir.core.inventory import (
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
+class PlatformNotSupported(Exception):
+    """ """
+
+
 class LibreInventory(object):
 
     username = os.getenv('NR_USERNAME')
@@ -44,9 +48,40 @@ class LibreInventory(object):
     @staticmethod
     def get_platform(os: str ) -> str:
         if os in ['ios', 'iosxe']:
-            return 'cisco_ios'
-        elif os in ['arista_eos', 'arista-mos', 'linux']:
-            return 'arista_eos'
+            return 'cisco', 'ios', 'cisco_ios'
+
+        elif os in ['nxos']:
+            return 'cisco', 'nxos', 'cisco_nxos'
+
+        elif os in ['iosxr']:
+            return 'cisco', 'iosxr', 'cisco_iosxr'
+
+        elif os in ['asa']:
+            return 'cisco', 'asa', 'cisco_asa'
+
+        elif os in ['arista_os', 'arista_mos']:
+            return 'arista', 'eos', 'arista_mos'
+
+        elif os in ['aruba']:
+            return 'aruba', 'aruba_os', 'aruba_os'
+
+        elif os in ['panos']:
+            return 'palo_alto', 'paloalto_panos', 'paloalto_panos'
+
+        elif os in ['procurve']:
+            return 'hp', 'hp_procurve', 'hp_procurve'
+
+        elif os in ['comware']:
+            return 'hp', 'hp_comware', 'hp_comware'
+
+        elif os in ['f5']:
+            return 'f5', 'f5_tmsh', 'f5_tmsh'
+
+        elif os in ['dnos']:
+            return 'dell', 'dell_dnos', 'dell_dnos'
+
+        elif os in ['linux']:
+            return 'linux', 'linux', 'linux'
         else:
             print(f'{os} is not a supported os')
 
@@ -56,7 +91,14 @@ class LibreInventory(object):
         groups = Groups()
 
         for device in data:
-            netmiko_driver = self.get_platform(device['os'])
+            try:
+                vendor, os_type, netmiko_driver = self.get_platform(device['os'])
+            except Exception as e:
+                print(device)
+                print(e)
+                print(device['os'])
+                pass
+
             name = hostname = device['hostname']
             port = 22
 
@@ -64,23 +106,29 @@ class LibreInventory(object):
             groups[device['type']] = Group(device['type'])
             groups[device['hardware']] = Group(device['hardware'])
             groups[device['os']] = Group(device['os'])
+            groups[vendor] = Group(vendor)
 
             hosts[hostname] = Host(
                 name=name,
                 hostname=hostname,
-                platform=netmiko_driver,
+                platform=os_type,
                 groups=ParentGroups(
                     [
                         groups[netmiko_driver],
                         groups[device['type']],
                         groups[device['hardware']],
-                        groups[device['os']]
+                        groups[device['os']],
+                        groups[vendor],
                     ]
                 ),
                 data={
                     "type": device['type'],
                     "model": device['hardware'],
+                    "vendor": vendor,
                     "version": device['version'],
+                    "location": device['location'],
+                    "version": device['version'],
+                    "serial": device['serial'],
                 },
 
                 connection_options={
@@ -92,7 +140,8 @@ class LibreInventory(object):
                         platform=netmiko_driver,
                         extras={
                             "device_type": netmiko_driver,
-                            "port": 22,
+                            "port": port,
+                            "global_delay_factor": 4
                         }
                     )
                 }
