@@ -94,10 +94,7 @@ class LibreInventory(object):
             try:
                 vendor, os_type, netmiko_driver = self.get_platform(device['os'])
             except Exception as e:
-                print(device)
-                print(e)
-                print(device['os'])
-                pass
+                continue
 
             name = hostname = device['hostname']
             port = 22
